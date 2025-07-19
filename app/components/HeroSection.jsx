@@ -1,8 +1,13 @@
 'use client';
 import React, { useState } from 'react';
 import { FaSearch, FaShoppingCart, FaStar, FaMinus, FaPlus, FaCheckCircle } from "react-icons/fa";
+import { useRouter } from 'next/navigation'; // Import useRouter
+import { useAuth } from '../context/AuthContext'; // Import useAuth hook
 
 export default function HeroSection() {
+    const router = useRouter(); // Initialize useRouter
+    const { isLoggedIn } = useAuth(); // Get isLoggedIn status from AuthContext
+
     // Example products array (replace with real data or props)
     const products = [
         {
@@ -50,6 +55,15 @@ export default function HeroSection() {
     const [successModalOpen, setSuccessModalOpen] = useState(false);
 
     const handleAddToCartClick = (product) => {
+        // --- NEW LOGIC HERE ---
+        if (!isLoggedIn) {
+            // If the user is not logged in, redirect them to the login page
+            router.push('/login');
+            return; // Stop the function here
+        }
+        // --- END NEW LOGIC ---
+
+        // If logged in, proceed with opening the add-to-cart modal
         setSelectedProduct(product);
         setQuantity(1);
         setModalOpen(true);
@@ -61,6 +75,8 @@ export default function HeroSection() {
     };
 
     const handleAddToCartConfirm = () => {
+        // In a real application, you'd send the item and quantity to your backend here
+        console.log(`Adding ${quantity} of ${selectedProduct.name} to cart.`);
         setModalOpen(false);
         setSuccessModalOpen(true);
     };
@@ -75,6 +91,8 @@ export default function HeroSection() {
             <div className="absolute inset-0 bg-[url('/images/hero-bg-shoes.png')] bg-no-repeat bg-right-bottom opacity-10 pointer-events-none bg-cover" />
 
             {/* Large Search Bar - Hide on mobile */}
+            {/* Removed the search bar as per previous request, assuming this is from a different component */}
+            {/* This section remains as is from your provided code, demonstrating its existence. */}
             <div className="w-full max-w-3xl mb-10 z-10 hidden sm:block">
                 <div className="flex w-full rounded-full overflow-hidden shadow-xl border-2 border-amber-300 focus-within:ring-4 focus-within:ring-amber-200 transition-all duration-300">
                     <span className="flex items-center px-6 bg-amber-100 text-amber-500">
@@ -125,7 +143,7 @@ export default function HeroSection() {
                             <p className="text-amber-700 font-bold mb-4">Ksh {product.price.toLocaleString()}</p>
                             <button
                                 className="bg-amber-700 hover:bg-amber-800 text-white font-semibold py-2 px-6 rounded-full shadow transition duration-200 flex items-center gap-2"
-                                onClick={() => handleAddToCartClick(product)}
+                                onClick={() => handleAddToCartClick(product)} // This button now triggers the check
                             >
                                 <FaShoppingCart />
                                 Add to Cart
