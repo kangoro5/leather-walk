@@ -53,20 +53,20 @@ export default function LoginPage() {
             console.log('Login successful:', response.data);
 
             // --- CRUCIAL CHANGE HERE ---
-            // Instead of directly setting localStorage, call the login function from context.
-            // This function handles both localStorage and updating the global isLoggedIn state.
+            // Pass the entire user object (response.data.user) and the token to the login function
+            // Assuming your backend response is { user: { _id, email, username, ... }, token: "your_jwt_token" }
             if (response.data.user) {
-                login(response.data.user.email, response.data.user.username); // Pass email and username to context login
+                // The `user` object from the backend response should contain `_id`, `email`, `username`, etc.
+                // The `token` is important for subsequent authenticated requests.
+                login(response.data.user, response.data.token); // <--- THIS IS THE KEY MODIFICATION
             } else {
-                // Handle case where user data is not directly in response.data.user
-                // This might happen if your API returns the user object directly as response.data
-                // You'd need to adjust based on your actual API response structure.
-                // For example, if response.data is the user object:
-                // login(response.data.email, response.data.username);
-                openModal('Login successful, but user data structure unexpected.');
-                // Still proceed to redirect, but log a warning.
-                console.warn('Login response.data.user was null, but login was successful. Check API response structure.');
-                login(identifier, identifier); // Fallback: use identifier for both if user data is missing
+                // Fallback for unexpected API response structure if user data is missing
+                console.warn('Login successful, but user data (response.data.user) was not found in the expected format. Check API response structure.');
+                openModal('Login successful, but user data could not be fully retrieved.');
+                // You might still want to partially log in if the server says success,
+                // but this scenario indicates a backend response issue.
+                // For demonstration, we'll use identifier as a fallback, but a real app needs `_id`.
+                login({ email: identifier, username: identifier, _id: 'unknown-id' }, response.data.token || 'no-token');
             }
 
             router.push('/'); // Redirect after successful login and context update

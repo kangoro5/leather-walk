@@ -1,5 +1,6 @@
-'use client';
-import React, { useState } from 'react';
+'use client'; // Keep this at the top if it's a client component
+
+import React, { useState, useEffect } from 'react';
 import {
     FaSearch,
     FaDollarSign,
@@ -9,75 +10,155 @@ import {
     FaMinus,
     FaPlus,
     FaShoppingCart,
-    FaCheckCircle
+    FaCheckCircle,
+    FaSpinner // Import spinner for loading state
 } from 'react-icons/fa';
-import { useRouter } from 'next/navigation'; // Import useRouter
-import { useAuth } from '../context/AuthContext'; // Import useAuth hook
-
-// Example data (replace with real data or fetch from API)
-const shoes = [
-    { id: 1, name: "Classic Oxford", image: "/images/shoe1.jpg", price: 12000, size: 42, color: "Brown" },
-    { id: 2, name: "Modern Sneaker", image: "/images/shoe2.jpg", price: 9500, size: 41, color: "Black" },
-    { id: 3, name: "Vintage Brogue", image: "/images/shoe3.jpg", price: 13500, size: 43, color: "Tan" },
-    { id: 4, name: "Elegant Loafer", image: "/images/shoe4.jpg", price: 11000, size: 42, color: "Brown" },
-    { id: 5, name: "Urban Derby", image: "/images/shoe5.jpg", price: 12500, size: 44, color: "Black" },
-    { id: 6, name: "Minimalist Boot", image: "/images/shoe6.jpg", price: 14000, size: 45, color: "Tan" },
-    { id: 7, name: "Casual Slip-on", image: "/images/shoe1.jpg", price: 8000, size: 40, color: "Grey" },
-    { id: 8, name: "Sporty Runner", image: "/images/shoe2.jpg", price: 10500, size: 42, color: "Blue" },
-    { id: 9, name: "Formal Monk Strap", image: "/images/shoe3.jpg", price: 15000, size: 43, color: "Burgundy" },
-];
-
-const uniqueSizes = [...new Set(shoes.map(s => s.size))].sort((a, b) => a - b);
-const uniqueColors = [...new Set(shoes.map(s => s.color))].sort();
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../context/AuthContext'; // Ensure this path is correct
 
 export default function ShopPage() {
-    const router = useRouter(); // Initialize useRouter
-    const { isLoggedIn } = useAuth(); // Get isLoggedIn status from AuthContext
+    const router = useRouter();
+    // Destructure user from useAuth. 'user' will now be the full user object from AuthContext.
+    const { isLoggedIn, user } = useAuth(); 
 
+    // State for fetched products and loading/error status
+    const [products, setProducts] = useState([]);
+    const [loading, setLoading] = useState(true); // Initialize loading to true
+    const [error, setError] = useState(null);
+
+    // Filter states
     const [name, setName] = useState('');
     const [price, setPrice] = useState('');
     const [size, setSize] = useState('');
     const [color, setColor] = useState('');
+
+    // Modal states
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedShoe, setSelectedShoe] = useState(null);
     const [quantity, setQuantity] = useState(1);
     const [successModalOpen, setSuccessModalOpen] = useState(false);
+    const [addToCartLoading, setAddToCartLoading] = useState(false); // New state for add to cart loading
+    const [addToCartError, setAddToCartError] = useState(null); // New state for add to cart error
 
-    const filteredShoes = shoes.filter(shoe => {
+    // --- useEffect to fetch products from API ---
+    useEffect(() => {
+        const fetchProducts = async () => {
+            setLoading(true); // Start loading
+            setError(null);   // Clear any previous errors
+            try {
+                const res = await fetch('http://localhost:8000/api/products');
+
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.error || `Failed to fetch products. Status: ${res.status}`);
+                }
+
+                const data = await res.json();
+                setProducts(data); // Set the fetched products
+            } catch (err) {
+                console.error("Error fetching products:", err);
+                setError(err.message || 'Failed to load products. Please try again later.'); // Set the error message
+            } finally {
+                setLoading(false); // End loading
+            }
+        };
+
+        fetchProducts();
+    }, []); // Empty dependency array means this runs once on component mount
+
+    // Derive unique sizes and colors from fetched products
+    const uniqueSizes = [...new Set(products.map(p => p.size))].filter(Boolean).sort((a, b) => {
+        const numA = parseInt(a);
+        const numB = parseInt(b);
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return numA - numB;
+        }
+        if (isNaN(numA) && isNaN(numB)) {
+            return String(a).localeCompare(String(b));
+        }
+        return isNaN(numA) ? 1 : -1;
+    });
+
+    const uniqueColors = [...new Set(products.map(p => p.color))].filter(Boolean).sort();
+
+
+    const filteredProducts = products.filter(product => {
         return (
-            (name === '' || shoe.name.toLowerCase().includes(name.toLowerCase())) &&
-            (price === '' || shoe.price <= Number(price)) &&
-            (size === '' || shoe.size === Number(size)) &&
-            (color === '' || shoe.color === color)
+            (name === '' || product.name.toLowerCase().includes(name.toLowerCase())) &&
+            (price === '' || product.price <= Number(price)) &&
+            (size === '' || String(product.size) === String(size)) &&
+            (color === '' || product.color === color)
         );
     });
 
     const handleAddToCartClick = (shoe) => {
-        // --- NEW LOGIC HERE ---
         if (!isLoggedIn) {
-            // If the user is not logged in, redirect them to the login page
             router.push('/login');
-            return; // Stop the function here
+            return;
         }
-        // --- END NEW LOGIC ---
-
-        // If logged in, proceed with opening the add-to-cart modal
         setSelectedShoe(shoe);
-        setQuantity(1); // Reset quantity when opening modal for a new shoe
+        setQuantity(1);
+        setAddToCartError(null); // Clear previous errors
         setModalOpen(true);
     };
 
     const handleModalClose = () => {
         setModalOpen(false);
         setSelectedShoe(null);
+        setAddToCartError(null); // Clear errors on close
     };
 
-    const handleAddToCartConfirm = () => {
-        // In a real application, you'd send the item and quantity to your backend here
-        console.log(`Adding ${quantity} of ${selectedShoe.name} to cart.`);
-        setModalOpen(false);
-        setSuccessModalOpen(true);
+    // --- UPDATED handleAddToCartConfirm FUNCTION ---
+    const handleAddToCartConfirm = async () => {
+        if (!selectedShoe || !user || !user._id) { 
+            setAddToCartError('Authentication error: User not identified. Please log in again.');
+            return;
+        }
+
+        if (quantity <= 0 || quantity > selectedShoe.quantity) {
+            setAddToCartError(`Please select a quantity between 1 and ${selectedShoe.quantity}.`);
+            return;
+        }
+
+        setAddToCartLoading(true);
+        setAddToCartError(null);
+
+        try {
+            const payload = {
+                productId: selectedShoe._id,
+                quantity: quantity
+            };
+
+            // Use the new POST /api/carts/:userId/add route
+            const res = await fetch(`http://localhost:8000/api/carts/${user._id}/add`, {
+                method: 'POST', // Always POST for adding a single item
+                headers: {
+                    'Content-Type': 'application/json',
+                    // 'Authorization': `Bearer ${user.token}` // Uncomment if you have authentication tokens
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const errorData = await res.json();
+                // Backend will return specific error messages, e.g., "Insufficient stock"
+                throw new Error(errorData.message || 'Failed to add item to cart.');
+            }
+
+            const cartData = await res.json();
+            console.log('Item added to cart successfully:', cartData);
+
+            setModalOpen(false);
+            setSuccessModalOpen(true);
+        } catch (err) {
+            console.error('Error adding to cart:', err);
+            setAddToCartError(err.message || 'An unexpected error occurred while adding to cart.');
+        } finally {
+            setAddToCartLoading(false);
+        }
     };
+    // --- END UPDATED handleAddToCartConfirm FUNCTION ---
 
     const handleSuccessClose = () => {
         setSuccessModalOpen(false);
@@ -100,6 +181,13 @@ export default function ShopPage() {
                 }
                 .animate-scaleIn {
                     animation: scaleIn 0.3s ease-out forwards;
+                }
+                 @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .animate-spin-fast {
+                    animation: spin 0.8s linear infinite;
                 }
             `}</style>
 
@@ -165,43 +253,67 @@ export default function ShopPage() {
                 </div>
             </div>
 
-            {/* Shoes Cards Section */}
+            {/* Products Display Section */}
             <div className="max-w-6xl mx-auto py-8 px-2 flex flex-wrap gap-6 md:gap-8 justify-center">
-                {filteredShoes.length === 0 && (
+                {loading && (
+                    <div className="text-center text-amber-700 text-xl mt-20 flex flex-col items-center gap-4">
+                        <FaSpinner className="animate-spin-fast text-5xl" />
+                        Loading products...
+                    </div>
+                )}
+
+                {error && (
+                    <div className="text-center text-red-600 text-xl mt-20 p-4 bg-red-100 border border-red-300 rounded-lg">
+                        Error: {error}
+                    </div>
+                )}
+
+                {!loading && !error && filteredProducts.length === 0 && (
                     <div className="text-amber-900 text-lg font-semibold mt-10 flex items-center gap-2">
                         <FaSearch className="text-amber-500" /> No shoes found matching your criteria.
                     </div>
                 )}
-                {filteredShoes.map(shoe => (
+
+                {!loading && !error && filteredProducts.length > 0 && filteredProducts.map(product => (
                     <div
-                        key={shoe.id}
+                        key={product._id} 
                         className="bg-white/90 rounded-xl shadow-lg p-4 md:p-6 flex flex-col items-center w-full max-w-xs sm:w-72 transform hover:scale-105 transition-transform duration-300"
                     >
                         <img
-                            src={shoe.image}
-                            alt={shoe.name}
+                            src={product.imageUrl || '/images/placeholder.jpg'} 
+                            alt={product.name}
                             className="w-full h-44 object-contain rounded-lg mb-4 bg-white shadow-inner"
                         />
-                        <h3 className="text-lg font-semibold text-amber-900 mb-1">{shoe.name}</h3>
+                        <h3 className="text-lg font-semibold text-amber-900 mb-1">{product.name}</h3>
                         <p className="text-amber-700 font-bold mb-1 flex items-center gap-1">
-                            <FaDollarSign className="inline text-amber-500" /> Ksh {shoe.price.toLocaleString()}
+                            <FaDollarSign className="inline text-amber-500" /> Ksh {product.price.toLocaleString()}
                         </p>
                         <div className="flex gap-3 text-sm text-amber-800 mb-4">
-                            <span><FaShoePrints className="inline mr-1" />{shoe.size}</span>
-                            <span><FaPalette className="inline mr-1" />{shoe.color}</span>
+                            <span><FaShoePrints className="inline mr-1" />{product.size || 'N/A'}</span>
+                            <span><FaPalette className="inline mr-1" />{product.color || 'N/A'}</span>
                         </div>
-                        <button
-                            className="bg-amber-700 hover:bg-amber-800 text-white font-semibold py-2 px-6 rounded-full shadow transition duration-200 flex items-center gap-2 w-full justify-center"
-                            onClick={() => handleAddToCartClick(shoe)} // This button now triggers the check
-                        >
-                            <FaShoppingCart />
-                            Add to Cart
-                        </button>
+                        {/* Only show 'Add to Cart' if there is stock */}
+                        {product.quantity > 0 ? (
+                            <button
+                                className="bg-amber-700 hover:bg-amber-800 text-white font-semibold py-2 px-6 rounded-full shadow transition duration-200 flex items-center gap-2 w-full justify-center"
+                                onClick={() => handleAddToCartClick(product)}
+                            >
+                                <FaShoppingCart />
+                                Add to Cart
+                            </button>
+                        ) : (
+                            <button
+                                className="bg-gray-400 text-white font-semibold py-2 px-6 rounded-full shadow cursor-not-allowed flex items-center gap-2 w-full justify-center"
+                                disabled
+                            >
+                                Out of Stock
+                            </button>
+                        )}
                     </div>
                 ))}
             </div>
 
-            {/* Modal Popup */}
+            {/* Modal Popup (Add to Cart) */}
             {modalOpen && selectedShoe && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn px-2">
                     <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-md relative animate-scaleIn transition-all duration-300 ease-out mx-2">
@@ -214,7 +326,7 @@ export default function ShopPage() {
                         </button>
                         <div className="flex flex-col items-center">
                             <img
-                                src={selectedShoe.image}
+                                src={selectedShoe.imageUrl || '/images/placeholder.jpg'}
                                 alt={selectedShoe.name}
                                 className="w-40 h-40 object-contain rounded-lg mb-4 bg-white shadow"
                             />
@@ -226,8 +338,8 @@ export default function ShopPage() {
                                 <FaDollarSign className="inline text-amber-500" /> Ksh {selectedShoe.price.toLocaleString()}
                             </p>
                             <div className="flex gap-4 text-amber-800 mb-4">
-                                <span><FaShoePrints className="inline mr-1" />{selectedShoe.size}</span>
-                                <span><FaPalette className="inline mr-1" />{selectedShoe.color}</span>
+                                <span><FaShoePrints className="inline mr-1" />{selectedShoe.size || 'N/A'}</span>
+                                <span><FaPalette className="inline mr-1" />{selectedShoe.color || 'N/A'}</span>
                             </div>
                             <div className="flex flex-col items-center w-full">
                                 <label className="mb-2 text-amber-900 font-medium" htmlFor="quantity">Quantity</label>
@@ -243,24 +355,42 @@ export default function ShopPage() {
                                         id="quantity"
                                         type="number"
                                         min={1}
+                                        max={selectedShoe.quantity}
                                         value={quantity}
-                                        onChange={e => setQuantity(Math.max(1, Number(e.target.value)))}
+                                        onChange={e => setQuantity(Math.max(1, Math.min(selectedShoe.quantity, Number(e.target.value))))}
                                         className="w-16 px-2 py-2 text-amber-900 text-center text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                     />
                                     <button
                                         className="bg-amber-100 hover:bg-amber-200 text-amber-800 p-3 transition-colors duration-200"
-                                        onClick={() => setQuantity(prev => prev + 1)}
+                                        onClick={() => setQuantity(prev => Math.min(selectedShoe.quantity, prev + 1))}
                                         aria-label="Increase quantity"
                                     >
                                         <FaPlus />
                                     </button>
                                 </div>
+                                {addToCartError && (
+                                    <p className="text-red-500 text-sm mb-2">{addToCartError}</p>
+                                )}
+                                {quantity > selectedShoe.quantity && (
+                                    <p className="text-red-500 text-sm mt-2">Only {selectedShoe.quantity} available in stock.</p>
+                                )}
                                 <button
-                                    className="bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 px-10 rounded-full shadow-lg transition duration-200 w-full flex items-center justify-center gap-2"
+                                    className={`bg-amber-700 text-white font-semibold py-3 px-10 rounded-full shadow-lg transition duration-200 w-full flex items-center justify-center gap-2
+                                        ${(quantity <= 0 || quantity > selectedShoe.quantity || addToCartLoading) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-800'}`}
                                     onClick={handleAddToCartConfirm}
+                                    disabled={quantity <= 0 || quantity > selectedShoe.quantity || addToCartLoading}
                                 >
-                                    <FaShoppingCart />
-                                    Add to Cart
+                                    {addToCartLoading ? (
+                                        <>
+                                            <FaSpinner className="animate-spin-fast" />
+                                            Adding...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaShoppingCart />
+                                            Add to Cart
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>
