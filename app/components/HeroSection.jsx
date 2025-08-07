@@ -1,36 +1,34 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { FaSearch, FaShoppingCart, FaStar, FaMinus, FaPlus, FaCheckCircle, FaSpinner, FaTimes, FaDollarSign } from "react-icons/fa"; // Import FaSpinner and FaTimes, FaDollarSign
+import { FaSearch, FaShoppingCart, FaStar, FaMinus, FaPlus, FaCheckCircle, FaSpinner, FaTimes, FaDollarSign } from "react-icons/fa";
 import { useRouter } from 'next/navigation';
-import { useAuth } from '../context/AuthContext'; // Ensure this path is correct
+import { useAuth } from '../context/AuthContext';
 
 export default function HeroSection() {
     const router = useRouter();
-    // Destructure user from useAuth. 'user' will now be the full user object from AuthContext.
-    const { isLoggedIn, user } = useAuth(); // <--- Get the user object here
+    const { isLoggedIn, user } = useAuth();
 
-    // State for fetched latest products, loading, and error status
     const [latestProducts, setLatestProducts] = useState([]);
-    const [loading, setLoading] = useState(true); // Initialize loading to true
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // Modal state for Add to Cart
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState(null);
     const [quantity, setQuantity] = useState(1);
     const [successModalOpen, setSuccessModalOpen] = useState(false);
-    const [addToCartLoading, setAddToCartLoading] = useState(false); // New state for add to cart loading
-    const [addToCartError, setAddToCartError] = useState(null); // New state for add to cart error
+    const [addToCartLoading, setAddToCartLoading] = useState(false);
+    const [addToCartError, setAddToCartError] = useState(null);
 
-    // --- useEffect to fetch latest 6 products from API ---
+    // New state for the image modal
+    const [imageModalOpen, setImageModalOpen] = useState(false);
+    const [currentImage, setCurrentImage] = useState('');
+
     useEffect(() => {
         const fetchLatestProducts = async () => {
-            setLoading(true); // Start loading
-            setError(null);   // Clear any previous errors
+            setLoading(true);
+            setError(null);
             try {
-                // Fetch latest 6 products from the API.
-                // Assuming your API supports limit and sorting by creation date.
-                const res = await fetch('http://localhost:8000/api/products?limit=6&sortBy=createdAt:desc'); // Example API call
+                const res = await fetch('http://localhost:8000/api/products?limit=6&sortBy=createdAt:desc');
 
                 if (!res.ok) {
                     const errorData = await res.json();
@@ -38,17 +36,17 @@ export default function HeroSection() {
                 }
 
                 const data = await res.json();
-                setLatestProducts(data); // Set the fetched products
+                setLatestProducts(data);
             } catch (err) {
                 console.error("Error fetching latest products:", err);
-                setError(err.message || 'Failed to load latest products. Please try again later.'); // Set the error message
+                setError(err.message || 'Failed to load latest products. Please try again later.');
             } finally {
-                setLoading(false); // End loading
+                setLoading(false);
             }
         };
 
         fetchLatestProducts();
-    }, []); // Empty dependency array means this runs once on component mount
+    }, []);
 
     const handleAddToCartClick = (product) => {
         if (!isLoggedIn) {
@@ -57,19 +55,30 @@ export default function HeroSection() {
         }
         setSelectedProduct(product);
         setQuantity(1);
-        setAddToCartError(null); // Clear previous errors
+        setAddToCartError(null);
         setModalOpen(true);
     };
 
     const handleModalClose = () => {
         setModalOpen(false);
         setSelectedProduct(null);
-        setAddToCartError(null); // Clear errors on close
+        setAddToCartError(null);
     };
 
-    const handleAddToCartConfirm = async () => { // <--- Made this async
-        // Now 'user' from useAuth will contain the '_id'
-        if (!selectedProduct || !user || !user._id) { // <--- Check for user and user._id
+    // New handler for opening the image modal
+    const handleImageClick = (imageUrl) => {
+        setCurrentImage(imageUrl);
+        setImageModalOpen(true);
+    };
+
+    // New handler for closing the image modal
+    const handleImageModalClose = () => {
+        setImageModalOpen(false);
+        setCurrentImage('');
+    };
+
+    const handleAddToCartConfirm = async () => {
+        if (!selectedProduct || !user || !user._id) {
             setAddToCartError('Authentication error: User not identified. Please log in again.');
             return;
         }
@@ -79,78 +88,32 @@ export default function HeroSection() {
             return;
         }
 
-        setAddToCartLoading(true); // Start loading for add to cart
-        setAddToCartError(null); // Clear previous errors
+        setAddToCartLoading(true);
+        setAddToCartError(null);
 
         try {
-            const payload = {
-                userId: user._id, // <--- Use user._id from context
-                products: [
-                    {
-                        productId: selectedProduct._id,
-                        quantity: quantity,
-                        priceAtTimeOfAddition: selectedProduct.price // Include price at time of addition
-                    }
-                ]
+            // This is the simplified and corrected logic.
+            // We now always call the POST endpoint, which is designed to handle
+            // adding an item to an existing cart or creating a new one.
+            const url = `http://localhost:8000/api/carts/${user._id}/add`;
+            const requestBody = {
+                productId: selectedProduct._id,
+                quantity: quantity
             };
 
-            // Fetch the user's current cart to determine if it's a POST or PUT
-            const currentCartRes = await fetch(`http://localhost:8000/api/carts/${user._id}`);
-            let currentCart = null;
-            if (currentCartRes.ok) {
-                const data = await currentCartRes.json();
-                // Check if the cart is actually found (not just an empty object from 200 OK for no cart)
-                if (data && data.products) { // Assuming your backend sends { products: [] } for empty cart
-                    currentCart = data;
-                }
-            }
-            
-            let method = 'POST';
-            let url = 'http://localhost:8000/api/carts';
-
-            if (currentCart && currentCart.products) {
-                // If cart exists, update existing product or add new one
-                method = 'PUT';
-                url = `http://localhost:8000/api/carts/${user._id}`;
-
-                // Create a new products array for the PUT request
-                let updatedProducts = [...currentCart.products];
-                const existingProductIndex = updatedProducts.findIndex(
-                    // Check if productId is populated or just the ID string
-                    item => (item.productId && item.productId._id === selectedProduct._id) || (item.productId === selectedProduct._id)
-                );
-
-                if (existingProductIndex > -1) {
-                    // Update quantity of existing product
-                    updatedProducts[existingProductIndex] = {
-                        productId: selectedProduct._id,
-                        quantity: updatedProducts[existingProductIndex].quantity + quantity,
-                        priceAtTimeOfAddition: selectedProduct.price
-                    };
-                } else {
-                    // Add new product to cart
-                    updatedProducts.push({
-                        productId: selectedProduct._id,
-                        quantity: quantity,
-                        priceAtTimeOfAddition: selectedProduct.price
-                    });
-                }
-                payload.products = updatedProducts; // Update payload with new product list
-            }
-            // If currentCart is null/empty, method remains POST and payload.products is already correct for a new cart.
-
             const res = await fetch(url, {
-                method: method,
+                method: 'POST', // Always use POST for the add endpoint
                 headers: {
                     'Content-Type': 'application/json',
                     // 'Authorization': `Bearer ${user.token}` // Uncomment if you have authentication tokens and send them
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(requestBody)
             });
 
             if (!res.ok) {
                 const errorData = await res.json();
-                throw new Error(errorData.error || 'Failed to add item to cart.');
+                console.error("Backend error response:", errorData);
+                throw new Error(errorData.message || 'Failed to add item to cart.');
             }
 
             const cartData = await res.json();
@@ -162,7 +125,7 @@ export default function HeroSection() {
             console.error('Error adding to cart:', err);
             setAddToCartError(err.message || 'An unexpected error occurred while adding to cart.');
         } finally {
-            setAddToCartLoading(false); // End loading for add to cart
+            setAddToCartLoading(false);
         }
     };
 
@@ -234,8 +197,6 @@ export default function HeroSection() {
                 </span>
             </a>
 
-            ---
-
             {/* New Arrival/Trending Products Section */}
             <div className="mt-20 w-full max-w-6xl mx-auto">
                 <h2 className="text-3xl font-bold text-amber-900 mb-8 text-center flex items-center justify-center gap-3">
@@ -267,9 +228,10 @@ export default function HeroSection() {
                         {latestProducts.map((product) => (
                             <div key={product._id} className="bg-white/80 rounded-xl shadow-lg p-6 flex flex-col items-center">
                                 <img
-                                    src={product.imageUrl || '/images/placeholder.jpg'} // Use imageUrl from API, fallback
+                                    src={product.imageUrl || '/images/placeholder.jpg'}
                                     alt={product.name}
-                                    className="w-full h-48 object-contain rounded-lg mb-4 bg-white"
+                                    className="w-full h-48 object-contain rounded-lg mb-4 bg-white cursor-pointer transform hover:scale-105 transition-transform duration-200"
+                                    onClick={() => handleImageClick(product.imageUrl || '/images/placeholder.jpg')}
                                 />
                                 <h3 className="text-lg font-semibold text-amber-900 mb-2">{product.name}</h3>
                                 <p className="text-amber-700 font-bold mb-4 flex items-center gap-1">
@@ -318,11 +280,11 @@ export default function HeroSection() {
                             onClick={handleModalClose}
                             aria-label="Close"
                         >
-                            <FaTimes /> {/* Changed &times; to FaTimes */}
+                            <FaTimes />
                         </button>
                         <div className="flex flex-col items-center">
                             <img
-                                src={selectedProduct.imageUrl || '/images/placeholder.jpg'} // Use imageUrl
+                                src={selectedProduct.imageUrl || '/images/placeholder.jpg'}
                                 alt={selectedProduct.name}
                                 className="w-40 h-40 object-contain rounded-lg mb-4 bg-white shadow"
                             />
@@ -340,7 +302,7 @@ export default function HeroSection() {
                                         className="bg-amber-100 hover:bg-amber-200 text-amber-800 p-3 transition-colors duration-200"
                                         onClick={() => setQuantity(prev => Math.max(1, prev - 1))}
                                         aria-label="Decrease quantity"
-                                        disabled={addToCartLoading} // Disable while loading
+                                        disabled={addToCartLoading}
                                     >
                                         <FaMinus />
                                     </button>
@@ -348,22 +310,22 @@ export default function HeroSection() {
                                         id="quantity"
                                         type="number"
                                         min={1}
-                                        max={selectedProduct.quantity} // Max quantity is available stock
+                                        max={selectedProduct.quantity}
                                         value={quantity}
-                                        onChange={e => setQuantity(Math.max(1, Math.min(selectedProduct.quantity, Number(e.target.value))))} // Clamp quantity
+                                        onChange={e => setQuantity(Math.max(1, Math.min(selectedProduct.quantity, Number(e.target.value))))}
                                         className="w-16 px-2 py-2 text-amber-900 text-center text-lg focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                        disabled={addToCartLoading} // Disable while loading
+                                        disabled={addToCartLoading}
                                     />
                                     <button
                                         className="bg-amber-100 hover:bg-amber-200 text-amber-800 p-3 transition-colors duration-200"
-                                        onClick={() => setQuantity(prev => Math.min(selectedProduct.quantity, prev + 1))} // Clamp quantity
+                                        onClick={() => setQuantity(prev => Math.min(selectedProduct.quantity, prev + 1))}
                                         aria-label="Increase quantity"
-                                        disabled={addToCartLoading} // Disable while loading
+                                        disabled={addToCartLoading}
                                     >
                                         <FaPlus />
                                     </button>
                                 </div>
-                                {addToCartError && ( // <--- Display add to cart error
+                                {addToCartError && (
                                     <p className="text-red-500 text-sm mb-2">{addToCartError}</p>
                                 )}
                                 {quantity > selectedProduct.quantity && (
@@ -373,7 +335,7 @@ export default function HeroSection() {
                                     className={`bg-amber-700 text-white font-semibold py-3 px-10 rounded-full shadow-lg transition duration-200 w-full flex items-center justify-center gap-2
                                         ${(quantity <= 0 || quantity > selectedProduct.quantity || addToCartLoading) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-800'}`}
                                     onClick={handleAddToCartConfirm}
-                                    disabled={quantity <= 0 || quantity > selectedProduct.quantity || addToCartLoading} // Disable if invalid quantity or loading
+                                    disabled={quantity <= 0 || quantity > selectedProduct.quantity || addToCartLoading}
                                 >
                                     {addToCartLoading ? (
                                         <>
@@ -402,7 +364,7 @@ export default function HeroSection() {
                             onClick={handleSuccessClose}
                             aria-label="Close"
                         >
-                            <FaTimes /> {/* Changed &times; to FaTimes */}
+                            <FaTimes />
                         </button>
                         <div className="flex flex-col items-center">
                             <FaCheckCircle className="text-green-500 text-5xl mb-2" />
@@ -425,6 +387,26 @@ export default function HeroSection() {
                                 </button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Image Modal */}
+            {imageModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fadeIn p-4">
+                    <div className="bg-white rounded-lg shadow-2xl relative animate-scaleIn w-full max-w-4xl max-h-[90vh] overflow-hidden flex items-center justify-center">
+                        <button
+                            className="absolute top-4 right-4 text-white hover:text-gray-300 text-4xl p-2 bg-black/50 rounded-full transition-colors duration-200 z-10"
+                            onClick={handleImageModalClose}
+                            aria-label="Close image modal"
+                        >
+                            <FaTimes />
+                        </button>
+                        <img
+                            src={currentImage}
+                            alt="Large product view"
+                            className="max-w-full max-h-[85vh] object-contain"
+                        />
                     </div>
                 </div>
             )}

@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { useRouter } from 'next/navigation';
 
-import { FaHome, FaShoppingCart, FaUser, FaStore, FaEnvelope, FaPhoneAlt, FaBars, FaTimes, FaSignInAlt, FaSignOutAlt, FaSpinner, FaCaretDown } from "react-icons/fa"; // Removed FaSearch
+import { FaHome, FaShoppingCart, FaUser, FaStore, FaEnvelope, FaPhoneAlt, FaBars, FaTimes, FaSignInAlt, FaSignOutAlt, FaSpinner, FaCaretDown } from "react-icons/fa";
 
 export default function NavBar() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
-    const { isLoggedIn, logout, isAuthReady } = useAuth();
+    const [cartItemCount, setCartItemCount] = useState(0); 
+    const { isLoggedIn, user, logout, isAuthReady } = useAuth();
     const router = useRouter();
     const dropdownRef = useRef(null);
 
@@ -27,6 +28,37 @@ export default function NavBar() {
         };
     }, [dropdownRef]);
 
+    // --- New useEffect to fetch cart count ---
+    useEffect(() => {
+        const fetchCartCount = async () => {
+            if (isLoggedIn && user && user._id) { 
+                try {
+                    const response = await fetch(`http://localhost:8000/api/carts/${user._id}`); 
+                    
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            setCartItemCount(0);
+                            return;
+                        }
+                        throw new Error(`Failed to fetch cart: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    const totalItems = data.products.reduce((sum, item) => sum + item.quantity, 0);
+                    setCartItemCount(totalItems);
+
+                } catch (error) {
+                    console.error("Error fetching cart count:", error);
+                    setCartItemCount(0);
+                }
+            } else {
+                setCartItemCount(0);
+            }
+        };
+
+        fetchCartCount(); 
+        
+    }, [isLoggedIn, user, isAuthReady]);
 
     const handleSignInClick = () => {
         router.push('/login');
@@ -39,6 +71,7 @@ export default function NavBar() {
         router.push('/login');
         setMenuOpen(false);
         setAccountDropdownOpen(false);
+        setCartItemCount(0);
     };
 
     // Helper function to render authentication-related links (desktop & mobile)
@@ -58,16 +91,6 @@ export default function NavBar() {
             if (!isMobile) {
                 return (
                     <>
-                        {/* Cart Link (remains separate) */}
-                        <li className="relative">
-                            <Link href="/cart" className={`flex items-center gap-2 text-white/90 hover:text-[#ffd700] transition-colors cursor-pointer px-3 py-1 rounded-lg hover:bg-black/20`} onClick={() => setMenuOpen(false)}>
-                                <FaShoppingCart className="text-xl" />
-                                Cart
-                                {/* Placeholder for cart item count */}
-                                <span className="absolute -top-2 -right-4 bg-[#ffd700] text-[#3e2723] text-xs rounded-full px-2 font-bold shadow border border-white">2</span>
-                            </Link>
-                        </li>
-
                         {/* Account Dropdown */}
                         <li className="relative" ref={dropdownRef}>
                             <button
@@ -104,13 +127,6 @@ export default function NavBar() {
                 // Mobile view (separate links within the drawer)
                 return (
                     <>
-                        <li>
-                            <Link href="/cart" className="flex items-center gap-3 text-white/90 hover:text-[#ffd700] text-lg font-semibold py-2" onClick={() => setMenuOpen(false)}>
-                                <FaShoppingCart className="text-xl" />
-                                Cart
-                                <span className="ml-2 bg-[#ffd700] text-[#3e2723] text-xs rounded-full px-2 font-bold shadow border border-white">2</span>
-                            </Link>
-                        </li>
                         <li>
                             <Link href="/account" className="flex items-center gap-3 text-white/90 hover:text-[#ffd700] text-lg font-semibold py-2" onClick={() => setMenuOpen(false)}>
                                 <FaUser className="text-xl" />
@@ -185,7 +201,6 @@ export default function NavBar() {
                 </div>
 
                 {/* Desktop Navigation Links */}
-                {/* Removed the search bar div here */}
                 <div className="hidden md:flex items-center space-x-1 relative z-10">
                     <ul className="flex items-center gap-8 font-semibold">
                         <li>
@@ -212,12 +227,34 @@ export default function NavBar() {
                                 Contact
                             </Link>
                         </li>
-                        {renderAuthLinks(false)}
+                        {/* Cart Link for Desktop */}
+                        <li className="relative">
+                            <Link href="/cart" className={`flex items-center gap-2 text-white/90 hover:text-[#ffd700] transition-colors cursor-pointer px-3 py-1 rounded-lg hover:bg-black/20`} onClick={() => setMenuOpen(false)}>
+                                <FaShoppingCart className="text-xl" />
+                                Cart
+                                {cartItemCount > 0 && ( 
+                                    <span className="absolute -top-2 -right-4 bg-[#ffd700] text-[#3e2723] text-xs rounded-full px-2 font-bold shadow border border-white">
+                                        {cartItemCount}
+                                    </span>
+                                )}
+                            </Link>
+                        </li>
+                        {renderAuthLinks(false)} {/* Only render account dropdown/sign-in for desktop here */}
                     </ul>
                 </div>
-            </nav>
 
-            {/* Removed the mobile search bar div here */}
+                {/* Mobile Cart Icon (always visible on small screens) */}
+                <div className="md:hidden relative z-10 mr-4"> {/* Added mr-4 for spacing from menu icon */}
+                    <Link href="/cart" className="flex items-center text-white/90 hover:text-[#ffd700] transition-colors cursor-pointer text-2xl" onClick={() => setMenuOpen(false)}>
+                        <FaShoppingCart />
+                        {cartItemCount > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-[#ffd700] text-[#3e2723] text-xs rounded-full px-2 py-0.5 font-bold shadow border border-white">
+                                {cartItemCount}
+                            </span>
+                        )}
+                    </Link>
+                </div>
+            </nav>
 
             {/* Mobile Navigation Drawer */}
             {menuOpen && (
@@ -249,7 +286,7 @@ export default function NavBar() {
                             <FaEnvelope className="text-xl" />
                             Contact
                         </Link>
-                        {renderAuthLinks(true)}
+                        {renderAuthLinks(true)} {/* This will now correctly render account/sign-out for mobile */}
                     </div>
                 </div>
             )}

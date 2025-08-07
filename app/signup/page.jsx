@@ -81,12 +81,13 @@ export default function SignupPage() {
             setSuccessMessage('Account created and logged in successfully!');
 
             // 3. Update the AuthContext with the logged-in user's details
-            if (loginResponse.data.user) {
-                login(loginResponse.data.user.email, loginResponse.data.user.username);
+            if (loginResponse.data.user && typeof loginResponse.data.user._id === 'string' && loginResponse.data.user._id.length === 24 && /^[a-fA-F0-9]{24}$/.test(loginResponse.data.user._id)) {
+                // Save the full user object and token, just like in the login page
+                login(loginResponse.data.user, loginResponse.data.token);
             } else {
-                // Fallback: If user data isn't directly under .user, use the form's email/username
-                console.warn('Login response.data.user was null, but login was successful. Using form data for context.');
-                login(email, username);
+                // Show error and do not log in
+                setApiError('Signup succeeded, but could not retrieve a valid user ID from the server. Please try logging in or contact support.');
+                return;
             }
 
             // 4. Redirect to the home page after successful login and context update

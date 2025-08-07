@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useRouter } from 'next/navigation';
 
 import { FaUserCircle, FaClipboardList, FaMapMarkerAlt, FaCog, FaSignOutAlt, FaTachometerAlt, FaSpinner } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext'; // Using the updated AuthContext
 
 export default function MyAccountPage() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -13,44 +14,50 @@ export default function MyAccountPage() {
     const [userError, setUserError] = useState(null);
 
     const router = useRouter();
+    const { logout, getToken } = useAuth(); // Destructuring getToken from the context
+
+    const handleLogout = () => {
+        console.log('Logging out...');
+        logout();
+        setCurrentUser(null); // Clear current user data from state
+        router.push('/login');
+    };
 
     useEffect(() => {
         const fetchUserData = async () => {
             setLoadingUser(true);
             setUserError(null);
-            const userEmailFromLS = localStorage.getItem('userEmail');
+            
+            const authToken = getToken();
 
-            if (!userEmailFromLS) {
-                console.warn('No user email found in localStorage. Redirecting to login.');
+            if (!authToken) {
+                console.warn('No authentication token found. Redirecting to login.');
                 router.push('/login');
                 setLoadingUser(false);
                 return;
             }
 
             try {
-                // *** UPDATED API CALL TO USE THE SPECIFIED ENDPOINT ***
-                // Construct the URL with the email directly in the path
-                const response = await axios.get(`http://localhost:8000/api/users/email/${userEmailFromLS}`);
+                const response = await axios.get('http://localhost:8000/api/users/me', {
+                    headers: {
+                        Authorization: `Bearer ${authToken}`
+                    }
+                });
 
-                if (response.data && response.data.user) {
-                    // Assuming your backend sends user data under a 'user' key
-                    setCurrentUser(response.data.user);
-                } else if (response.data) {
-                    // If backend sends user data directly (not nested under 'user')
+                if (response.data) {
                     setCurrentUser(response.data);
-                }
-                else {
+                } else {
                     setUserError('User data not found in response from server.');
-                    handleLogout(); // Force logout if response structure is unexpected
+                    handleLogout();
                 }
             } catch (error) {
                 console.error('Failed to fetch user data:', error);
                 if (error.response && error.response.status === 401) {
                     setUserError('Session expired. Please log in again.');
-                    handleLogout(); // Force logout on 401 (Unauthorized)
+                    handleLogout();
                 } else if (error.response && error.response.status === 404) {
-                     setUserError('User not found. Please log in again.');
-                     handleLogout(); // Force logout if user not found (e.g., deleted account)
+                    setUserError('User not found. Please log in again.');
+                    handleLogout();
                 }
                 else {
                     setUserError('Failed to load user profile. Please check your internet connection or try again later.');
@@ -61,23 +68,12 @@ export default function MyAccountPage() {
         };
 
         fetchUserData();
-    }, [router]);
+    }, [router, getToken, handleLogout]);
 
-    const handleLogout = () => {
-        console.log('Logging out...');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('userName');
-        // localStorage.removeItem('userToken'); // Uncomment if you store a token
-
-        setCurrentUser(null); // Clear current user data from state
-        router.push('/login');
-    };
-
-    // Mock data for orders and addresses (replace with fetched data if available)
     const orders = [
-        { id: 'ORD001', date: '2024-06-15', total: 24000, status: 'Delivered', items: 1, image: '/images/shoe1.jpg' },
-        { id: 'ORD002', date: '2024-07-01', total: 9500, status: 'Processing', items: 1, image: '/images/shoe2.jpg' },
-        { id: 'ORD003', date: '2024-07-05', total: 13500, status: 'Shipped', items: 1, image: '/images/shoe3.jpg' },
+        { id: 'ORD001', date: '2024-06-15', total: 24000, status: 'Delivered', items: 1, image: 'https://placehold.co/80x80/ffe4e6/8b5cf6?text=Shoe' },
+        { id: 'ORD002', date: '2024-07-01', total: 9500, status: 'Processing', items: 1, image: 'https://placehold.co/80x80/e6f7ff/2563eb?text=Shoe' },
+        { id: 'ORD003', date: '2024-07-05', total: 13500, status: 'Shipped', items: 1, image: 'https://placehold.co/80x80/e0e7ff/6366f1?text=Shoe' },
     ];
 
     const addresses = [
@@ -210,6 +206,9 @@ export default function MyAccountPage() {
                                 ))}
                             </div>
                         )}
+                        <button className="mt-8 bg-amber-700 hover:bg-amber-800 text-white font-semibold py-3 px-8 rounded-full shadow-lg transition duration-200">
+                            Add New Address
+                        </button>
                     </div>
                 );
             case 'addresses':
@@ -268,7 +267,7 @@ export default function MyAccountPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-amber-100 via-white to-amber-200 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="min-h-screen bg-gradient-to-br from-amber-100 via-white to-amber-200 py-12 px-4 sm:px-6 lg:px-8 font-inter">
             <style jsx>{`
                 @keyframes fadeIn {
                     from { opacity: 0; transform: translateY(10px); }
@@ -283,6 +282,14 @@ export default function MyAccountPage() {
                 {/* Sidebar Navigation */}
                 <div className="lg:w-1/4 bg-[#442a1f] p-8 text-white flex flex-col justify-between">
                     <div>
+                        {/* A new div for the Logo */}
+                        <div className="mb-8">
+                            <img
+                                src="https://placehold.co/150x50/ffffff/442a1f?text=Your+Logo"
+                                alt="Company Logo"
+                                className="w-auto h-12"
+                            />
+                        </div>
                         <div className="flex items-center mb-8">
                             <FaUserCircle className="text-6xl text-amber-200 mr-4" />
                             <div>
@@ -356,3 +363,5 @@ export default function MyAccountPage() {
         </div>
     );
 }
+
+// NOTE: Please replace the image URLs for the orders with a proper placeholder or static assets if needed.

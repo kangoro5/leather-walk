@@ -40,13 +40,17 @@ export default function ShopPage() {
     const [addToCartLoading, setAddToCartLoading] = useState(false); // New state for add to cart loading
     const [addToCartError, setAddToCartError] = useState(null); // New state for add to cart error
 
+    // New state for image modal
+    const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+    const [currentImage, setCurrentImage] = useState('');
+
     // --- useEffect to fetch products from API ---
     useEffect(() => {
         const fetchProducts = async () => {
             setLoading(true); // Start loading
             setError(null);   // Clear any previous errors
             try {
-                const res = await fetch('http://localhost:8000/api/products');
+                const res = await fetch('http://localhost:8000/api/products'); 
 
                 if (!res.ok) {
                     const errorData = await res.json();
@@ -142,10 +146,16 @@ export default function ShopPage() {
 
             if (!res.ok) {
                 const errorData = await res.json();
+                console.error('Backend error response:', errorData); // <-- Add this
                 // Backend will return specific error messages, e.g., "Insufficient stock"
                 throw new Error(errorData.message || 'Failed to add item to cart.');
             }
 
+            const contentType = res.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              const text = await res.text();
+              throw new Error(`Non-JSON response: ${text.slice(0, 100)}`);
+            }
             const cartData = await res.json();
             console.log('Item added to cart successfully:', cartData);
 
@@ -162,6 +172,12 @@ export default function ShopPage() {
 
     const handleSuccessClose = () => {
         setSuccessModalOpen(false);
+    };
+
+    // Function to handle image click for large modal
+    const handleImageClick = (imageUrl) => {
+        setCurrentImage(imageUrl);
+        setIsImageModalOpen(true);
     };
 
     return (
@@ -282,7 +298,8 @@ export default function ShopPage() {
                         <img
                             src={product.imageUrl || '/images/placeholder.jpg'} 
                             alt={product.name}
-                            className="w-full h-44 object-contain rounded-lg mb-4 bg-white shadow-inner"
+                            className="w-full h-44 object-contain rounded-lg mb-4 bg-white shadow-inner cursor-pointer"
+                            onClick={() => handleImageClick(product.imageUrl || '/images/placeholder.jpg')} // Add onClick here
                         />
                         <h3 className="text-lg font-semibold text-amber-900 mb-1">{product.name}</h3>
                         <p className="text-amber-700 font-bold mb-1 flex items-center gap-1">
@@ -429,6 +446,28 @@ export default function ShopPage() {
                                     Continue Shopping
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Image Modal */}
+            {isImageModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn px-2 py-4">
+                    <div className="relative bg-white rounded-lg shadow-xl p-4 md:p-6 max-w-3xl w-full max-h-[90vh] overflow-hidden animate-scaleIn">
+                        <button
+                            className="absolute top-3 right-3 text-gray-700 hover:text-gray-900 text-3xl transition-colors duration-200 z-10"
+                            onClick={() => setIsImageModalOpen(false)}
+                            aria-label="Close image modal"
+                        >
+                            <FaTimes />
+                        </button>
+                        <div className="flex justify-center items-center h-full">
+                            <img
+                                src={currentImage}
+                                alt="Enlarged product image"
+                                className="max-w-full max-h-[80vh] object-contain rounded-md"
+                            />
                         </div>
                     </div>
                 </div>

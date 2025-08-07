@@ -55,18 +55,14 @@ export default function LoginPage() {
             // --- CRUCIAL CHANGE HERE ---
             // Pass the entire user object (response.data.user) and the token to the login function
             // Assuming your backend response is { user: { _id, email, username, ... }, token: "your_jwt_token" }
-            if (response.data.user) {
-                // The `user` object from the backend response should contain `_id`, `email`, `username`, etc.
-                // The `token` is important for subsequent authenticated requests.
-                login(response.data.user, response.data.token); // <--- THIS IS THE KEY MODIFICATION
+            if (response.data.user && typeof response.data.user._id === 'string' && response.data.user._id.length === 24 && /^[a-fA-F0-9]{24}$/.test(response.data.user._id)) {
+                // The `user` object from the backend response should contain a valid MongoDB ObjectId as _id
+                login(response.data.user, response.data.token);
             } else {
-                // Fallback for unexpected API response structure if user data is missing
-                console.warn('Login successful, but user data (response.data.user) was not found in the expected format. Check API response structure.');
-                openModal('Login successful, but user data could not be fully retrieved.');
-                // You might still want to partially log in if the server says success,
-                // but this scenario indicates a backend response issue.
-                // For demonstration, we'll use identifier as a fallback, but a real app needs `_id`.
-                login({ email: identifier, username: identifier, _id: 'unknown-id' }, response.data.token || 'no-token');
+                // Show error and do not log in
+                console.warn('Login successful, but user data (response.data.user) was not found in the expected format or _id is invalid. Check API response structure.');
+                openModal('Login failed: Could not retrieve a valid user ID from the server. Please try again or contact support.');
+                return;
             }
 
             router.push('/'); // Redirect after successful login and context update
@@ -169,10 +165,10 @@ export default function LoginPage() {
 
                 <p className="text-center text-amber-800 mt-8 text-md">
                     Don't have an account?{' '}
-                    <a href="#" className="text-amber-700 hover:underline font-semibold flex items-center justify-center gap-1 mt-2">
+                    <a href="/signup" className="text-amber-700 hover:underline font-semibold flex items-center justify-center gap-1 mt-2">
                         <FaUserPlus className="text-lg" /> Create an Account
                     </a>
-                </p>
+                </p>  
             </div>
 
             {/* Modern Error Modal with Blur Background */}

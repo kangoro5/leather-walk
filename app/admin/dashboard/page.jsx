@@ -4,6 +4,8 @@ import {
     FaTachometerAlt, FaBoxes, FaClipboardList, FaUsers, FaCog, FaSignOutAlt,
     FaPlus, FaEdit, FaTrash, FaEye, FaSearch, FaTimes, FaDollarSign, FaSortAmountUp, FaCalendarAlt, FaSpinner, FaCheckCircle
 } from 'react-icons/fa';
+import { useAuth } from '../../context/AuthContext'; // Adjust the import path as necessary
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
     const [activeTab, setActiveTab] = useState('dashboard');
@@ -227,6 +229,14 @@ export default function DashboardPage() {
         if (window.confirm('Are you sure you want to delete this user?')) {
             setUsers(users.filter(user => user.id !== userId));
         }
+    };
+
+    const { logout } = useAuth();
+    const router = useRouter();
+
+    const handleLogout = () => {
+        logout();
+        router.push('/login');
     };
 
     // Render content based on active tab
@@ -492,7 +502,7 @@ export default function DashboardPage() {
                         <SidebarLink icon={<FaCog />} label="Settings" tab="settings" activeTab={activeTab} setActiveTab={setActiveTab} />
                     </nav>
                 </div>
-                <button className="w-full text-left flex items-center gap-3 py-3 px-4 rounded-lg bg-amber-700 hover:bg-amber-600 transition-colors duration-200 mt-8">
+                <button className="w-full text-left flex items-center gap-3 py-3 px-4 rounded-lg bg-amber-700 hover:bg-amber-600 transition-colors duration-200 mt-8" onClick={handleLogout}>
                     <FaSignOutAlt className="text-xl" /> Logout
                 </button>
             </div>
